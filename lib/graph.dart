@@ -1,3 +1,5 @@
+// ignore_for_file: non_constant_identifier_names, avoid_print
+
 class Node {
   int id;
   int data;
@@ -7,11 +9,11 @@ class Node {
     required this.id,
     this.data = 0,
     Map<int, int>? connectedTo,
-  }) : this.connectedTo = connectedTo ?? {};
-  
+  }) : connectedTo = connectedTo ?? {};
+
   void addNeighbour(Node neighbour, {int weight = 0}) {
-    if (!this.connectedTo.containsKey(neighbour.id)) {
-      this.connectedTo[neighbour.id] = weight;
+    if (!connectedTo.containsKey(neighbour.id)) {
+      connectedTo[neighbour.id] = weight;
     }
   }
 
@@ -20,24 +22,24 @@ class Node {
   }
 
   Iterable<int> getConnections() {
-    return this.connectedTo.keys;
+    return connectedTo.keys;
   }
 
   int getID() {
-    return this.id;
+    return id;
   }
 
   int getData() {
-    return this.data;
+    return data;
   }
 
   int getWeight(Node neighbour) {
-    return this.connectedTo[neighbour.id] ?? 0;
+    return connectedTo[neighbour.id] ?? 0;
   }
 
   @override
   String toString() {
-    return '${this.data} Connected to: ${this.connectedTo.keys.toList()}';
+    return '$data Connected to: ${connectedTo.keys.toList()}';
   }
 }
 

@@ -13,18 +13,18 @@ class SudokuConnections {
         cols = 0,
         total_blocks = 0,
         allIds = [] {
-    this.rows = 9;
-    this.cols = 9;
-    this.total_blocks = this.rows * this.cols;
+    rows = 9;
+    cols = 9;
+    total_blocks = rows * cols;
     _generateGraph();
     connectEdges();
-    this.allIds = this.graph.getAllNodesIds();
+    allIds = graph.getAllNodesIds();
   }
   
 
   void _generateGraph() {
-    for (int idx = 1; idx <= this.total_blocks; idx++) {
-      this.graph.addNode(idx);
+    for (int idx = 1; idx <= total_blocks; idx++) {
+      graph.addNode(idx);
     }
   }
 
@@ -47,7 +47,7 @@ class SudokuConnections {
     head_connections.forEach((head, connections) {
       connections.forEach((key, values) {
         for (var v in values) {
-          this.graph.addEdge(head, v);
+          graph.addEdge(head, v);
         }
       });
     });
