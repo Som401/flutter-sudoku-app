@@ -11,6 +11,6 @@ void testConnections() {
   }
 }
 
-void main() {
+void test() {
   testConnections();
 }
