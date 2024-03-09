@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'sudoku_solve.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 void main() => runApp(const SudokuApp());
 
@@ -30,28 +33,54 @@ class _SudokuScreenState extends State<SudokuScreen> {
   int _selectedRow = -1;
   int _selectedCol = -1;
   bool _isComplete = false;
+  bool _isLoading = true;
+  int _mistakes = 0; // Add this line
+
   @override
   void initState() {
     super.initState();
-    _generatePuzzle();
+    fetchSudokuBoard().then((board) {
+      setState(() {
+        _puzzle = [...board]; // Deep copy of board
+      });
+      solveSudoku(board.map((list) => [...list]).toList()).then((solvedBoard) {
+        // Deep copy of board
+        setState(() {
+          _solution = solvedBoard; // Set _solution to the solved board
+          _isLoading = false;
+          print(_puzzle);
+        });
+      });
+    });
   }
 
-  void _generatePuzzle() {
-    var rng = Random();
-    _solution =
-        List.generate(9, (_) => List.generate(9, (_) => rng.nextInt(9) + 1));
-    _puzzle = List.generate(9, (_) => List.generate(9, (_) => 0));
-    for (int i = 0; i < 9; i++) {
-      for (int j = 0; j < 9; j++) {
-        if (rng.nextDouble() < 0.5) {
-          _puzzle[i][j] = _solution[i][j];
-        }
-      }
+  Future<List<List<int>>> fetchSudokuBoard() async {
+    final response = await http.get(Uri.parse(
+        'https://sudoku-api.vercel.app/api/dosuku?query={newboard(limit:1){grids{value}}}'));
+
+    if (response.statusCode == 200) {
+      var data = jsonDecode(response.body);
+      List<dynamic> rawBoard = data['newboard']['grids'][0]['value'];
+      List<List<int>> board = rawBoard
+          .map((row) => (row as List).map((item) => item as int).toList())
+          .toList();
+      return board;
+    } else {
+      throw Exception('Failed to load Sudoku board');
     }
   }
 
+  Future<List<List<int>>> solveSudoku(List<List<int>> board) async {
+    SudokuBoard s = SudokuBoard(board);
+    print("BEFORE SOLVING ...\n\n");
+    s.printBoard();
+    print("\nSolving ...\n\n\nAFTER SOLVING ...\n\n");
+    s.solveGraphColoring(m: 9);
+    s.printBoard();
+    return s.board;
+  }
+
   void _checkComplete() {
-    // Check if the puzzle is complete
     _isComplete = true;
     for (int i = 0; i < 9; i++) {
       for (int j = 0; j < 9; j++) {
@@ -74,13 +103,31 @@ class _SudokuScreenState extends State<SudokuScreen> {
   }
 
   void _enterNumber(int number) {
-    if (_selectedRow != -1 && _selectedCol != -1) {
-      setState(() {
-        _puzzle[_selectedRow][_selectedCol] = number;
-        _checkComplete();
-      });
-    }
+  if (_selectedRow != -1 && _selectedCol != -1) {
+    setState(() {
+      _puzzle[_selectedRow][_selectedCol] = number;
+      if (_solution[_selectedRow][_selectedCol] != number) {
+        _mistakes++; // Increment the mistakes counter if the entered number is wrong
+      }
+      _checkComplete();
+      if (_mistakes == 3) {
+        // Start a new game if the mistakes counter is 3
+        fetchSudokuBoard().then((board) {
+          solveSudoku(board.map((list) => [...list]).toList()).then((solvedBoard) {
+            setState(() {
+              _puzzle = board;
+              _solution = solvedBoard;
+              _selectedRow = -1;
+              _selectedCol = -1;
+              _isComplete = false;
+              _mistakes = 0; // Reset the number of mistakes
+            });
+          });
+        });
+      }
+    });
   }
+}
 
   bool _isInSameGrid(int row, int col) {
     int gridRow = _selectedRow ~/ 3;
@@ -102,107 +149,135 @@ class _SudokuScreenState extends State<SudokuScreen> {
           ),
         ),
         centerTitle: true,
-        toolbarHeight: 60,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(20.0),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 16.0),
-          ),
-        ),
+        toolbarHeight: 80,
       ),
       body: Column(
         children: <Widget>[
-          const SizedBox(height: 16),
-          ElevatedButton(
-            child: const Text('New Game'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton(
+                child: const Text(
+                  'New Game',
+                  style: TextStyle(color: Colors.blue),
+                ),
+                onPressed: () {
+                  fetchSudokuBoard().then((board) {
+                    solveSudoku(board.map((list) => [...list]).toList()).then((solvedBoard) {
+                      setState(() {
+                        _puzzle = board;
+                        _solution = solvedBoard;
+                        _selectedRow = -1;
+                        _selectedCol = -1;
+                        _isComplete = false;
+                        _mistakes = 0; 
+                      });
+                    });
+                  });
+                },
+              ),
+              Text(
+            '$_mistakes/3',
+            style: const TextStyle(fontSize: 21, color: Colors.red),
+          ),
+          TextButton(
+            child: const Text(
+              'Give Up',
+              style: TextStyle(color: Colors.blue),
+            ),
             onPressed: () {
               setState(() {
-                _generatePuzzle();
-                _selectedRow = -1;
-                _selectedCol = -1;
-                _isComplete = false;
+                _puzzle = _solution.map((list) => [...list]).toList();
               });
             },
           ),
-          Expanded(
-            child: Container(
+            ],
+          ),
+          Container(
               margin: const EdgeInsets.all(16.0),
+              height: MediaQuery.of(context).size.height * 0.46,
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border.all(color: Colors.black, width: 2.0),
                 borderRadius: BorderRadius.circular(8.0),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
+                    color: Colors.grey.withOpacity(0.5),
                     spreadRadius: 5,
                     blurRadius: 7,
                     offset: const Offset(0, 3),
                   ),
                 ],
               ),
-              child: GridView.count(
-                physics: NeverScrollableScrollPhysics(),
-                crossAxisCount: 9,
-                childAspectRatio: 1.0,
-                children: List.generate(81, (index) {
-                  int row = index ~/ 9;
-                  int col = index % 9;
-                  bool isSameRow = row == _selectedRow;
-                  bool isSameCol = col == _selectedCol;
-                  bool isSameGrid = _isInSameGrid(row, col);
-                  bool isSelected = _selectedRow == row && _selectedCol == col;
-                  return GestureDetector(
-                    onTap: () {
-                      _selectCell(row, col);
-                    },
-                    child: Container(
-                      constraints: const BoxConstraints.tightFor(height: 30.0),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        border: Border(
-                          top: BorderSide(
-                            color: row % 3 == 0 ? Colors.black : Colors.grey,
-                            width: row % 3 == 0 ? 2.0 : 1.0,
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                      color: Color.fromARGB(255, 8, 62, 105),
+                    ))
+                  : GridView.count(
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 9,
+                      children: List.generate(81, (index) {
+                        int row = index ~/ 9;
+                        int col = index % 9;
+                        bool isSameRow = row == _selectedRow;
+                        bool isSameCol = col == _selectedCol;
+                        bool isSameGrid = _isInSameGrid(row, col);
+                        bool isSelected =
+                            _selectedRow == row && _selectedCol == col;
+                        return GestureDetector(
+                          onTap: () {
+                            _selectCell(row, col);
+                          },
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              border: Border(
+                                top: BorderSide(
+                                  color:
+                                      row % 3 == 0 ? Colors.black : Colors.grey,
+                                  width: row % 3 == 0 ? 2.0 : 1.0,
+                                ),
+                                left: BorderSide(
+                                  color:
+                                      col % 3 == 0 ? Colors.black : Colors.grey,
+                                  width: col % 3 == 0 ? 2.0 : 1.0,
+                                ),
+                                right: BorderSide(
+                                  color: (col + 1) % 3 == 0
+                                      ? Colors.black
+                                      : Colors.grey,
+                                  width: (col + 1) % 3 == 0 ? 2.0 : 1.0,
+                                ),
+                                bottom: BorderSide(
+                                  color: (row + 1) % 3 == 0
+                                      ? Colors.black
+                                      : Colors.grey,
+                                  width: (row + 1) % 3 == 0 ? 2.0 : 1.0,
+                                ),
+                              ),
+                              color: isSelected
+                                  ? const Color.fromARGB(255, 174, 209, 250)
+                                  : (isSameRow || isSameCol || isSameGrid)
+                                      ? const Color.fromARGB(255, 228, 241, 251)
+                                      : Colors.white,
+                            ),
+                            child: Text(
+                              _puzzle[row][col] == 0
+                                  ? ''
+                                  : _puzzle[row][col].toString(),
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: _puzzle[row][col] == _solution[row][col]
+                                    ? Colors.black
+                                    : Colors.red,
+                              ),
+                            ),
                           ),
-                          left: BorderSide(
-                            color: col % 3 == 0 ? Colors.black : Colors.grey,
-                            width: col % 3 == 0 ? 2.0 : 1.0,
-                          ),
-                          right: BorderSide(
-                            color:
-                                (col + 1) % 3 == 0 ? Colors.black : Colors.grey,
-                            width: (col + 1) % 3 == 0 ? 2.0 : 1.0,
-                          ),
-                          bottom: BorderSide(
-                            color:
-                                (row + 1) % 3 == 0 ? Colors.black : Colors.grey,
-                            width: (row + 1) % 3 == 0 ? 2.0 : 1.0,
-                          ),
-                        ),
-                        color: isSelected
-                            ? const Color(0xFFBEDBFD)
-                            : (isSameRow || isSameCol || isSameGrid)
-                                ? const Color(0xFFF4F9FD)
-                                : Colors.white,
-                      ),
-                      child: Text(
-                        _puzzle[row][col] == 0
-                            ? ''
-                            : _puzzle[row][col].toString(),
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: _puzzle[row][col] == _solution[row][col]
-                              ? Colors.black
-                              : Colors.red,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
+                        );
+                      }),
+                    )),
           const SizedBox(height: 16),
           _isComplete
               ? const Text(
@@ -213,8 +288,10 @@ class _SudokuScreenState extends State<SudokuScreen> {
                     color: Color.fromARGB(255, 8, 62, 105),
                   ),
                 )
-              : const SizedBox(),
-          const SizedBox(height: 20),
+              : const SizedBox(height: 29,),
+          Container(
+            height: MediaQuery.of(context).size.height * 0.15,
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: <Widget>[

@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names, avoid_print
 
 class Node {
   int id;
@@ -93,6 +92,10 @@ class Graph {
 
   List<int> getAllNodesIds() {
     return allNodes.keys.toList();
+  }
+
+  int getTotalV() {
+    return totalV;
   }
 
   void DFS(int start) {
